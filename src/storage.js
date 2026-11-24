@@ -2,7 +2,7 @@
 // Copyright © 2026 wowayou — https://github.com/wowayou/time-logger
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Commercial licensing available on request; contact via the repository above.
-import { addDays, localDateKey, normalizeTimestamp, parseDateKey } from './time.js';
+import { addDays, localDateKey, normalizeTimestamp, parseDateKey, plannedEndTimestamp } from './time.js';
 import { getLocale, t, tAll } from './i18n.js';
 
 const KEY = 'timelog.v1';
@@ -1186,6 +1186,12 @@ export function validateImportData(imported) {
       errors.push(t('import.errTags', { at }));
     }
     if ('planned' in entry && typeof entry.planned !== 'boolean') errors.push(t('import.errPlanned', { at }));
+    if ('planEndTs' in entry) {
+      const endTs = typeof entry.planEndTs === 'string' ? normalizeTimestamp(entry.planEndTs) : '';
+      if (!entry.planned || !endTs || plannedEndTimestamp(entry.ts, endTs.slice(11)) !== endTs) {
+        errors.push(t('import.errPlanEnd', { at }));
+      }
+    }
     if ('ongoing' in entry && typeof entry.ongoing !== 'boolean') errors.push(t('import.errOngoing', { at }));
     if ('longConfirm' in entry) {
       const mark = entry.longConfirm;
@@ -1275,6 +1281,7 @@ function shiftedEntry(entry, shiftMinutes) {
     tags: Array.isArray(entry.tags) ? entry.tags.slice() : [],
     ts: shiftedTimestamp(entry.ts, shiftMinutes)
   };
+  if (entry.planEndTs) next.planEndTs = shiftedTimestamp(entry.planEndTs, shiftMinutes);
   if (entry.longConfirm) {
     next.longConfirm = {
       ...entry.longConfirm,
@@ -1292,6 +1299,7 @@ function comparableImportEntry(entry) {
     what: entry.what,
     tags: Array.isArray(entry.tags) ? entry.tags : [],
     planned: entry.planned === true || undefined,
+    planEndTs: entry.planEndTs,
     ongoing: entry.ongoing === true || undefined,
     longConfirm: entry.longConfirm
       ? { startTs: entry.longConfirm.startTs, endTs: entry.longConfirm.endTs }

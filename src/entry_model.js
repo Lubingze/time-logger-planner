@@ -194,6 +194,7 @@ function comparableEntry(entry) {
     what: entry.what,
     tags: Array.isArray(entry.tags) ? entry.tags.slice() : [],
     planned: entry.planned === true || undefined,
+    planEndTs: entry.planEndTs,
     ongoing: entry.ongoing === true || undefined,
     longConfirm: entry.longConfirm
       ? { startTs: entry.longConfirm.startTs, endTs: entry.longConfirm.endTs }

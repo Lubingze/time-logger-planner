@@ -195,6 +195,18 @@ export function validateTsForMode(raw, opts = {}) {
   return validateTs(raw);
 }
 
+export function plannedEndTimestamp(rawStart, endTime) {
+  const start = normalizeTimestamp(rawStart);
+  if (!start || !/^\d{2}:\d{2}$/.test(endTime) || endTime === hhmm(start)) return '';
+  const endDate = endTime < hhmm(start) ? localDateKey(addDays(new Date(start), 1)) : start.slice(0, 10);
+  return normalizeTimestamp(`${endDate}T${endTime}`);
+}
+
+export function plannedEndLabel(start, end) {
+  const time = hhmm(end);
+  return start.slice(0, 10) === end.slice(0, 10) ? time : t('timeline.planNextDay', { time });
+}
+
 export function fmtTs(ts) {
   const value = normalizeTimestamp(ts);
   return value ? value.replace('T', ' ') : String(ts || '');

@@ -883,6 +883,7 @@ import {
     }
     const beforeCount = recordedDayCount(d.entries);
     delete entry.planned;
+    delete entry.planEndTs;
     entry.ts = settled;
     normalizeEntries(d, { todayKey: todayStr(), createId: uid });
     const write = saveChecked(d, raw);

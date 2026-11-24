@@ -2,7 +2,7 @@
 // Copyright © 2026 wowayou — https://github.com/wowayou/time-logger
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Commercial licensing available on request; contact via the repository above.
-import { fmtMins, fmtPlainMins, hhmm, localDateTimeKey, minsBetweenDates, normalizeTimestamp, parseDateKey, shortDateLabel } from './time.js';
+import { fmtMins, fmtPlainMins, hhmm, localDateTimeKey, minsBetweenDates, normalizeTimestamp, parseDateKey, plannedEndLabel, shortDateLabel } from './time.js';
 import { dayHeatCells, formatPercent, tagShares, weekHeatCells } from './stats.js';
 import { getLocale, plural, t, tList } from './i18n.js';
 import {
@@ -333,7 +333,7 @@ export function renderTimeline(items, opts = {}) {
   const layout = normalizeTimelineDensity(density);
   // v1.8.3 尺子刻度（取代 v1.8.2 的 4h 满格时长条）：只在「全文」布局画（行高随正文变，
   // 竖脊长短不再代表时长，时长交给数字和刻度）。刻度绝对、无上限，跨天同样多即同样长。
-  // 纯装饰（aria-hidden），时长数字仍是可读真源；计划没有时长，不画。
+  // 纯装饰（aria-hidden），时长数字仍是可读真源；计划仅显示时长数字。
   const durTicks = mins => {
     if (layout !== 'full') return '';
     const { hours, quarters } = timelineTicks(mins);
@@ -344,13 +344,13 @@ export function renderTimeline(items, opts = {}) {
   const planned = (plannedItems || []).map(e => ({
     e,
     start: new Date(e.ts),
-    mins: 0,
+    mins: e.planEndTs ? minsBetweenDates(new Date(e.ts), new Date(e.planEndTs)) : 0,
     isOngoing: false,
     unrecorded: false,
     pendingConfirm: false,
     confirmable: false,
     tag: (e.tags || [])[0] || t('tag.unknown'),
-    endTs: '',
+    endTs: e.planEndTs || '',
     planned: true
   }));
   const allItems = [...items, ...planned];
@@ -380,17 +380,21 @@ export function renderTimeline(items, opts = {}) {
   const rows = [...allItems].reverse().map(({ e, start, end, mins, isOngoing, unrecorded, pendingConfirm, confirmable, tag, endTs, planned: isPlanned }) => {
     if (isPlanned) {
       const displayTag = (e.tags || [])[0] || t('tag.unknown');
-      const interactiveAttrs = readOnly ? '' : ` data-action="start-edit" role="button" tabindex="0" aria-label="${esc(t('timeline.editPlanAria', { what: e.what || t('timeline.emptyWhat') }))}"`;
+      const endLabel = endTs ? plannedEndLabel(e.ts, endTs) : '';
+      const editLabel = t('timeline.editPlanAria', { what: e.what || t('timeline.emptyWhat') });
+      const cardLabel = endLabel ? `${editLabel} · ${hhmm(e.ts)}–${endLabel}` : editLabel;
+      const interactiveAttrs = readOnly ? '' : ` data-action="start-edit" role="button" tabindex="0" aria-label="${esc(cardLabel)}"`;
       // v1.8.1：有「标记已发生」时不再显示「计划」二字——虚线竖脊与「现在」线上方的位置
       // 已表达，单行等高行里把宽度留给正文；只读页没有动作，仍显示「计划」。读屏名不变。
-      const card = `<div class="entry planned" data-b="${bucketForTag(displayTag, config)}" data-id="${esc(e.id)}" style="--mins:0"${interactiveAttrs}>
-        <div class="e-time">${hhmm(e.ts)}</div>
+      const card = `<div class="entry planned${endLabel ? ' has-plan-end' : ''}" data-b="${bucketForTag(displayTag, config)}" data-id="${esc(e.id)}" style="--mins:${mins}"${interactiveAttrs}>
+        <div class="e-time">${hhmm(e.ts)}${endLabel ? `<span class="plan-end-label">–${esc(endLabel)}</span>` : ''}</div>
         <div class="e-body">
           <div class="e-what">${esc(e.what || t('timeline.emptyWhat'))}</div>
           <span class="e-tag">#${esc(displayTag)}</span>
         </div>
         <div class="e-side">
-          ${readOnly ? `<div class="e-dur">${t('timeline.planDur')}</div>` : `<div class="e-meta"><button class="mini-btn" type="button" data-action="confirm-planned" data-id="${esc(e.id)}" aria-label="${t('timeline.markDoneAria')}">${t('timeline.markDone')}</button></div>`}
+          ${endLabel ? `<div class="e-dur">${fmtMins(mins)}</div>` : (readOnly ? `<div class="e-dur">${t('timeline.planDur')}</div>` : '')}
+          ${readOnly ? '' : `<div class="e-meta"><button class="mini-btn" type="button" data-action="confirm-planned" data-id="${esc(e.id)}" aria-label="${t('timeline.markDoneAria')}">${t('timeline.markDone')}</button></div>`}
         </div>
       </div>`;
       return readOnly ? card : swipeWrap(card, e, t('timeline.kindPlan'));
@@ -537,7 +541,7 @@ function sheetHead({ title, cancelText, cancelAction, cancelAria, doneText = '',
 const cellChevron = '<span class="cell-chevron" aria-hidden="true">›</span>';
 
 // 与 sw.js CACHE / manifest version 同步（project_audit.py 校验）；真机核对版本用。
-export const APP_VERSION = '1.15.0';
+export const APP_VERSION = '1.16.0';
 
 function renderDeleteConfirmSheet(opts = {}) {
   const plan = opts.deletePlan || {};
@@ -545,7 +549,7 @@ function renderDeleteConfirmSheet(opts = {}) {
   const isPlan = Boolean(entry.planned);
   const range = plan.startTs && plan.endTs
     ? `${hhmm(plan.startTs)}-${plan.endLabel || hhmm(plan.endTs)}`
-    : hhmm(entry.ts || '');
+    : (isPlan && entry.planEndTs ? `${hhmm(entry.ts)}–${plannedEndLabel(entry.ts, entry.planEndTs)}` : hhmm(entry.ts || ''));
   const resultClass = plan.outcome === 'join' ? 'is-join' : 'is-unrecorded';
   return `
     ${sheetHead({
@@ -1137,6 +1141,11 @@ export function renderFormSheet(opts) {
   // 计划编辑（isEditPlanned）沿用「计划时间（可改）」始终展开，改动概率高、无需折叠。
   const editStartLabel = e && normalizeTimestamp(e.ts) ? hhmm(e.ts) : '--:--';
   const editEndLabel = intervalContext && normalizeTimestamp(intervalContext.endTs) ? hhmm(intervalContext.endTs) : '--:--';
+  const planEndField = `
+        <label class="fl-label" for="form-plan-end">${t('form.labelPlanEnd')}</label>
+        <input class="inp" id="form-plan-end" type="time" value="${isEditPlanned && e.planEndTs ? esc(hhmm(e.planEndTs)) : ''}" aria-describedby="form-plan-end-hint form-plan-end-error">
+        <div class="form-hint" id="form-plan-end-hint">${t('form.planEndHint')}</div>
+        <div class="form-inline-error" id="form-plan-end-error" data-role="plan-end-error" role="alert" hidden></div>`;
   const editTimeSection = isEditPlanned
     ? `
       <div class="fl">
@@ -1144,6 +1153,7 @@ export function renderFormSheet(opts) {
         ${tsInput}
         <div data-role="edit-wheel"></div>
       </div>
+      <div class="fl">${planEndField}</div>
       ${opts && opts.planOutsideWindow ? `<div class="form-hint plan-expired-hint">${t('form.planOutsideWindow')}</div>` : ''}
       <div class="form-inline-error" data-role="conflict-error" hidden></div>`
     : (isEditPlaceholder || !intervalContext ? `
@@ -1224,6 +1234,7 @@ export function renderFormSheet(opts) {
       <div class="fl"${isPlan ? '' : ' hidden'} data-role="plan-time-row">
         <div class="fl-label">${t('form.labelPlanTimePlain')}</div>
         <div data-role="form-wheel-mount"></div>
+        ${planEndField}
         <div class="form-hint">${t('form.planHint')}</div>
       </div>
       <div class="form-inline-error" data-role="conflict-error" hidden></div>

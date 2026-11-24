@@ -4,7 +4,7 @@
 // Commercial licensing available on request; contact via the repository above.
 import { formatPercent, sortedEntriesFrom } from './stats.js';
 import { plural, t } from './i18n.js';
-import { fmtDateTime, fmtMins, fmtPlainMins, fmtTs, hhmm, p2 } from './time.js';
+import { fmtDateTime, fmtMins, fmtPlainMins, fmtTs, hhmm, p2, plannedEndLabel } from './time.js';
 
 // SPEC-012：sheet 关闭走 class 驱动的收起动画（sheet_controller.js
 // animateSheetClose），最长 320ms 兜底才真正 hidden。这里的值必须和那个兜底
@@ -100,7 +100,9 @@ export function createIoActions(deps) {
     return day.planned.map(entry => {
       const safeWhat = mdInline(entry.what) || t('io.emptyWhat');
       const safeTag = mdInline((entry.tags || [])[0] || t('tag.unknown'));
-      return t('io.planRow', { time: hhmm(entry.ts), what: safeWhat, tag: safeTag });
+      const start = hhmm(entry.ts);
+      const time = entry.planEndTs ? `${start}–${plannedEndLabel(entry.ts, entry.planEndTs)}` : start;
+      return t('io.planRow', { time, what: safeWhat, tag: safeTag });
     });
   }
 
@@ -381,9 +383,15 @@ export function createIoActions(deps) {
     const tag = entry && Array.isArray(entry.tags) && entry.tags[0] ? entry.tags[0] : t('io.noteUnrecorded');
     const meta = document.createElement('div');
     meta.className = 'import-conflict-meta';
-    meta.textContent = t('io.conflictMeta', { ts: entry && entry.ts ? fmtTs(entry.ts) : t('io.unknownTime'), tag, planned: entry && entry.planned ? t('io.plannedSuffix') : '' });
+    meta.textContent = t('io.conflictMeta', { ts: importEntryTime(entry), tag, planned: entry && entry.planned ? t('io.plannedSuffix') : '' });
     side.append(role, what, meta);
     return side;
+  }
+
+  function importEntryTime(entry) {
+    if (!entry || !entry.ts) return t('io.unknownTime');
+    const start = fmtTs(entry.ts);
+    return entry.planEndTs ? `${start}–${plannedEndLabel(entry.ts, entry.planEndTs)}` : start;
   }
 
   function importEntryRow(entry) {
@@ -393,7 +401,7 @@ export function createIoActions(deps) {
     meta.className = 'import-item-meta';
     const tag = entry && Array.isArray(entry.tags) && entry.tags[0] ? entry.tags[0] : t('io.noteUnrecorded');
     meta.textContent = t('io.itemMeta', {
-      ts: entry && entry.ts ? fmtTs(entry.ts) : t('io.unknownTime'),
+      ts: importEntryTime(entry),
       tag,
       planned: entry && entry.planned ? t('io.plannedSuffix') : ''
     });

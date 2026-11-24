@@ -60,6 +60,7 @@ import {
   nowStr,
   periodLabel,
   periodRange,
+  plannedEndTimestamp,
   todayStr,
   validateTs,
   validateTsForMode
@@ -1266,12 +1267,17 @@ export function createSheetController(deps) {
     const ctagEl = panel ? panel.querySelector('#form-ctag') : null;
     const what = whatEl ? whatEl.value : '';
     const ctag = ctagEl ? ctagEl.value : '';
-    if (!what.trim() && !ctag.trim()) return null;
+    const planEnd = panel?.querySelector('#form-plan-end');
+    const plannedTimes = formRecordMode === 'plan' && planEnd
+      ? { start: panel.querySelector('#form-ts').value, end: planEnd.value }
+      : null;
+    if (!what.trim() && !ctag.trim() && !plannedTimes?.end) return null;
     return {
       key: newDraftKey(),
       at: Date.now(),
       what,
       ctag,
+      plannedTimes,
       tag: formTag,
       bucket: formBucket,
       auto: formAutoTag ? { ...formAutoTag } : null,
@@ -1304,6 +1310,14 @@ export function createSheetController(deps) {
     const config = deps.loadConfig();
     whatEl.value = draft.what;
     if (ctagEl) ctagEl.value = draft.ctag;
+    if (draft.plannedTimes) {
+      const planButton = panel.querySelector('[data-action="pick-record-mode"][data-mode="plan"]');
+      if (formRecordMode !== 'plan' && planButton) pickRecordMode(planButton);
+      if (formRecordMode === 'plan') {
+        mountNewTimePicker(panel, draft.plannedTimes.start);
+        panel.querySelector('#form-plan-end').value = draft.plannedTimes.end;
+      }
+    }
     // 草稿留下后标签可能已在设置里被删：只填正文，不替用户复活它。
     const tagOk = Boolean(draft.tag && configuredBucketForTag(draft.tag, config));
     formTag = tagOk ? draft.tag : '';
@@ -1329,6 +1343,12 @@ export function createSheetController(deps) {
     const ctagEl = panel.querySelector('#form-ctag');
     if (whatEl) whatEl.value = '';
     if (ctagEl) ctagEl.value = '';
+    if (formRecordMode === 'plan') {
+      const start = defaultPlanTimestamp();
+      panel.querySelector('#form-plan-end').value = '';
+      mountNewTimePicker(panel, start);
+      readPlannedEnd(panel, start);
+    }
     formTag = '';
     formBucket = formDefaultBucket;
     formAutoTag = null;
@@ -2159,6 +2179,20 @@ export function createSheetController(deps) {
     closeAfterNewWrite(panel, { beforeData, entries: d.entries, configBeforeRaw: configSnapshot.raw, tag });
   }
 
+  function readPlannedEnd(panel, startTs) {
+    const input = panel.querySelector('#form-plan-end');
+    const error = panel.querySelector('[data-role="plan-end-error"]');
+    const endTs = input.value ? plannedEndTimestamp(startTs, input.value) : '';
+    if (input.validity.badInput || (input.value && !endTs)) {
+      input.setAttribute('aria-invalid', 'true');
+      showInlineError(panel, t('form.planEndInvalid'), 'plan-end-error', input);
+      return null;
+    }
+    input.removeAttribute('aria-invalid');
+    error.hidden = true;
+    return endTs;
+  }
+
   function saveEntry() {
     const panel = document.querySelector('#form-sheet .form-sheet-panel');
     if (formBackfill) { saveBackfill(panel); return; }
@@ -2180,6 +2214,8 @@ export function createSheetController(deps) {
       return;
     }
     setTimeInputError(timeScope, '');
+    const planEndTs = planned ? readPlannedEnd(panel, checked.ts) : '';
+    if (planEndTs === null) return;
     const what = document.getElementById('form-what').value.trim();
     if (!what) { document.getElementById('form-what').focus(); return; }
     const ctag = document.getElementById('form-ctag').value.trim();
@@ -2214,7 +2250,9 @@ export function createSheetController(deps) {
       }
     }
     if (planned) {
-      d.entries.push({ id: deps.uid(), ts: checked.ts, what, tags: [tag], planned: true });
+      const plan = { id: deps.uid(), ts: checked.ts, what, tags: [tag], planned: true };
+      if (planEndTs) plan.planEndTs = planEndTs;
+      d.entries.push(plan);
       // v88：计划保存此前是**唯一**不过 normalizeEntries 的表单写入路径，于是「今天
       // 恒有尾占位」这条不变量会在「今天最后一条是真实记录 + 本次只加了一条计划」时
       // 破掉：FAB 随之从「续 hh:mm 起」退化成「补记 hh:mm+1 起」。计划条不参与
@@ -2368,6 +2406,8 @@ export function createSheetController(deps) {
       return;
     }
     setTimeInputError(box.querySelector('[data-role="edit-wheel"]') || box, '');
+    const planEndTs = planned ? readPlannedEnd(box, checked.ts) : '';
+    if (planEndTs === null) return;
     const what = whatEl ? whatEl.value.trim() : '';
     if (!what) { if (whatEl) whatEl.focus(); return; }
     const sel = chipBox ? chipBox.querySelector('.chip.sel') : null;
@@ -2426,6 +2466,8 @@ export function createSheetController(deps) {
       entry.tags = [tag];
       if (planned) entry.planned = true;
       else delete entry.planned;
+      if (planEndTs) entry.planEndTs = planEndTs;
+      else delete entry.planEndTs;
       normalizeEntries(d, { todayKey: todayStr(), createId: deps.uid });
       const write = deps.saveChecked(d, raw);
       if (!write.ok) {
