@@ -12,29 +12,6 @@ async function seedAndRerender(page, entries) {
   await page.locator('[data-action="shift-period"][data-delta="1"]').click();
 }
 
-// ── ① 「标记已发生」不得把记录挪进第二天 ────────────────────────────────────
-// 旧代码无条件 `+1min` 躲同刻冲突：now 落在 23:59 且那一分钟已被占用时，记录静默
-// 落到次日 00:00——改变的是「这件事发生在哪一天」。
-test('v88: confirming a plan never pushes the entry across midnight', async ({ page }) => {
-  await boot(page, 768, 'empty', false, FIXED_NOW);
-  await page.evaluate(() => window.__setFixedNow('2026-06-29T23:59:00'));
-  await seedAndRerender(page, [
-    { id: 'taken', ts: '2026-06-29T23:59', what: '已经占着这一分钟', tags: ['求职推进'] },
-    { id: 'free-58', ts: '2026-06-29T23:57', what: '更早的一条', tags: ['求职推进'] },
-    { id: 'plan', ts: '2026-06-29T23:59', what: '要标记已发生的计划', tags: ['求职推进'], planned: true }
-  ]);
-
-  await page.locator('[data-action="confirm-planned"]').click();
-  const confirmed = await page.evaluate(() => JSON.parse(localStorage.getItem('timelog.v1'))
-    .entries.find(e => e.id === 'plan'));
-  expect(confirmed.planned).toBeUndefined();
-  expect(confirmed.ts.slice(0, 10), '标记已发生不得改变它发生在哪一天').toBe('2026-06-29');
-  expect(confirmed.ts).toBe('2026-06-29T23:58');
-  // 同刻唯一仍然成立
-  const stamps = await page.evaluate(() => JSON.parse(localStorage.getItem('timelog.v1')).entries.map(e => e.ts));
-  expect(new Set(stamps).size).toBe(stamps.length);
-});
-
 // ── ② 计划保存也要走 normalizeEntries（今天恒有尾占位） ──────────────────────
 // 计划保存此前是唯一不过 normalizeEntries 的表单写入路径，于是「今天最后一条是真实
 // 记录」时占位条补不回来，FAB 从「续 12:34 起」退化成「补记 00:06 起」。

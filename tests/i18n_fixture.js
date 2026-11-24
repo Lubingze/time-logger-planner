@@ -60,6 +60,7 @@ export async function bootLocale(page, opts = {}) {
     localStorage.clear();
     if (locale) localStorage.setItem('timelog.locale', locale);
     if (!freshDevice) {
+      localStorage.setItem('timelog.showTimelineGaps', '1');
       localStorage.setItem('timelog.v1', JSON.stringify({ version: 1, entries }));
       if (config) localStorage.setItem('timelog.config', JSON.stringify(config));
       localStorage.setItem('timelog.view', 'day');

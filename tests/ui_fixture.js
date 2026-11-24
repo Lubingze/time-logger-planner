@@ -208,14 +208,6 @@ export async function boot(page, width, state, share = false, now = '', selected
         { id: 'today-midnight-real', ts: `${dateKey(today)}T00:00`, what: '午夜开始', tags: ['求职推进'] }
       );
     }
-    if (state === 'plan-collides-now') {
-      // A future plan plus a real entry already sitting on the frozen "now"
-      // minute, so confirming the plan must dodge the same-ts collision (⑥).
-      entries.push(
-        { id: 'now-entry', ts: minuteKey(today), what: '正在做的事', tags: ['求职推进'] },
-        { id: 'plan-future', ts: `${dateKey(today)}T23:30`, what: '准备面试', tags: ['求职推进'], planned: true }
-      );
-    }
     if (state === 'custom-chip') {
       entries.push({ id: 'stretch-1', ts: `${dateKey(today)}T08:00`, what: '拉伸', tags: ['拉伸'] });
     }
@@ -246,6 +238,7 @@ export async function boot(page, width, state, share = false, now = '', selected
       }
     }
     localStorage.clear();
+    localStorage.setItem('timelog.showTimelineGaps', '1');
     localStorage.setItem('timelog.v1', JSON.stringify({ version: 1, entries }));
     // v89：**显式**写下这份 config，而不是靠产品的出厂种子兜底。
     // 此前只有三个 state 写 config，其余全部落到 storage.js 的 DEFAULT_SEED_BY_LOCALE——

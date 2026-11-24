@@ -144,6 +144,7 @@
   <div>
     <div class="tl-head">
       <div class="tl-label" id="list-label" data-i18n="list.titleDay">当日时间轴</div>
+      <button class="mini-btn" id="timeline-gaps-toggle" type="button" data-action="toggle-timeline-gaps" aria-controls="timeline" aria-expanded="false" hidden></button>
     </div>
     <div id="timeline"></div>
   </div>
@@ -337,6 +338,7 @@
         || snapshot.timelineDensity !== (localStorage.getItem('timelog.timelineDensity') === 'double' ? 'full'
           : ['single', 'full', 'scaled'].includes(localStorage.getItem('timelog.timelineDensity'))
             ? localStorage.getItem('timelog.timelineDensity') : 'full')
+        || snapshot.showTimelineGaps !== (localStorage.getItem('timelog.showTimelineGaps') === '1')
         // v1.13.0：首屏卡片图形门（与 storage.normalizeHeroVisual 一致：只有 'detail' 是分布图）。
         || snapshot.heroVisual !== (localStorage.getItem('timelog.heroVisual') === 'detail' ? 'detail' : 'ratio')) {
         setSnapshotState('rejected:state');

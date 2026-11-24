@@ -132,9 +132,9 @@ for (const kind of ['getter', 'getItem']) {
     });
   }
 
-  for (const action of ['delete', 'confirm-planned', 'confirm-segment']) {
+  for (const action of ['delete', 'confirm-segment']) {
     test(`F2: ${kind} denied ${action} does not mistake missing data for a valid action`, async ({ page }) => {
-      await boot(page, 768, action === 'delete' ? 'three-labels' : action === 'confirm-planned' ? 'planned-expired' : 'pending-confirm-lunch', false, FIXED_NOW);
+      await boot(page, 768, action === 'delete' ? 'three-labels' : 'pending-confirm-lunch', false, FIXED_NOW);
       if (action === 'delete') {
         await page.locator('.entry[data-id="tl-b"] .e-what').click();
         await page.locator('#form-sheet [data-action="request-delete"]').click();
@@ -148,7 +148,6 @@ for (const kind of ['getter', 'getItem']) {
       await button.click();
       const entries = await page.evaluate(() => JSON.parse(localStorage.getItem('timelog.v1')).entries);
       if (action === 'delete') expect(entries.find(e => e.id === 'tl-b').what).toBe('');
-      else if (action === 'confirm-planned') expect(entries.find(e => e.id === 'plan-expired').planned).toBeUndefined();
       else expect(entries.find(e => e.id === 'lunch-start').longConfirm).toEqual({ startTs: '2026-06-29T08:00', endTs: '2026-06-29T12:00' });
       expect(await page.evaluate(() => window.__readProbe.writes)).toEqual(['timelog.v1']);
     });

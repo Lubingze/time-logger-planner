@@ -721,11 +721,10 @@ test('plan mode uses plan copy and is hidden on historical days', async ({ page 
 
   // v47 R2+FAB：入口是悬浮 FAB；计划模式下主文案切「＋ 计划一条」（fab-main）。
   await expect(page.locator('#add-btn .fab-main')).toHaveText('＋ 计划一条');
-  // v56：tag 是素色 #标签，桶色走竖脊（data-b），脊为虚线。v1.8.1：有「标记已发生」时
-  // 右列只放这枚链接，不再显示「计划」二字（只读页没有链接时仍显示）。
+  // tag 是素色 #标签，计划通过虚线竖脊与已发生区分。
   await expect(page.locator('#timeline')).toContainText('#求职推进');
   await expect(page.locator('.entry.planned')).toHaveAttribute('data-b', 'job');
-  await expect(page.locator('.entry.planned [data-action="confirm-planned"]')).toBeVisible();
+  await expect(page.locator('.entry.planned [data-action="confirm-planned"]')).toHaveCount(0);
   await expect(page.locator('.entry.planned .e-dur')).toHaveCount(0);
   const entries = await page.evaluate(() => JSON.parse(localStorage.getItem('timelog.v1')).entries);
   expect(entries).toHaveLength(1);
@@ -737,16 +736,14 @@ test('plan mode uses plan copy and is hidden on historical days', async ({ page 
   await expect(page.locator('#form-sheet-title')).toHaveText('补记 · 6月28日');
 });
 
-test('planned-only day has honest ruler copy and confirm opens placeholder', async ({ page }) => {
+test('an elapsed plan stays separate from actual records and day totals', async ({ page }) => {
   await boot(page, 768, 'planned-only', false, FIXED_NOW);
   await expect(page.locator('#ruler')).toContainText('今日有计划，不计入统计');
   await expect(page.locator('#timeline')).toContainText('准备面试');
 
-  await page.getByRole('button', { name: '标记计划为已发生' }).click();
   const entries = await page.evaluate(() => JSON.parse(localStorage.getItem('timelog.v1')).entries);
-  expect(entries.find(entry => entry.id === 'plan-1')).toMatchObject({ ts: '2026-06-29T09:30', what: '准备面试', tags: ['求职推进'] });
-  expect(entries.find(entry => entry.ts === '2026-06-29T12:34' && entry.what === '')).toMatchObject({ tags: [] });
-  await expect(page.locator('.entry.placeholder .e-what')).toHaveText('还没记');
+  expect(entries.find(entry => entry.id === 'plan-1')).toMatchObject({ ts: '2026-06-29T09:30', what: '准备面试', tags: ['求职推进'], planned: true });
+  await expect(page.locator('.entry.planned')).toBeVisible();
 });
 
 test('summary includes a plan section for day view', async ({ page }) => {
@@ -1145,24 +1142,6 @@ test('deleting a standalone middle record turns its span 未记录, never the pr
   expect(entries.find(e => e.id === 'tl-b')).toMatchObject({ what: '', tags: [] });
   expect(entries.find(e => e.id === 'tl-a')).toMatchObject({ tags: ['睡觉'] });
   expect(entries.find(e => e.id === 'tl-c')).toMatchObject({ tags: ['吃饭'] });
-});
-
-test('⑥ confirming a plan onto a taken now-minute nudges forward', async ({ page }) => {
-  await boot(page, 768, 'plan-collides-now', false, FIXED_NOW);
-
-  // Confirm the future plan: it collapses to "now", which is already occupied by
-  // now-entry. It must shift forward to a free minute, never overwrite/duplicate.
-  await page.getByRole('button', { name: '标记计划为已发生' }).click();
-
-  const entries = await page.evaluate(() => JSON.parse(localStorage.getItem('timelog.v1')).entries);
-  const original = entries.find(e => e.id === 'now-entry');
-  const confirmed = entries.find(e => e.id === 'plan-future');
-  expect(original).toMatchObject({ ts: '2026-06-29T12:34', what: '正在做的事' });
-  expect(confirmed.planned).toBeFalsy();
-  // Pushed off the taken minute, no two entries share a timestamp.
-  expect(confirmed.ts).not.toBe('2026-06-29T12:34');
-  const stamps = entries.map(e => e.ts);
-  expect(new Set(stamps).size).toBe(stamps.length);
 });
 
 test('tapping a gap card opens the bounded backfill sheet', async ({ page }) => {

@@ -5,7 +5,6 @@
 import {
   entriesRevision,
   defaultFormTimestamp,
-  freeMinuteOnSameDay,
   normalizeEntries,
   openPlaceholderForDate,
   planDeleteEntry,
@@ -17,6 +16,7 @@ import {
   SELECTED_DATE_KEY,
   THEME_KEY,
   TIMELINE_DENSITY_KEY,
+  TIMELINE_GAPS_KEY,
   normalizeTimelineDensity,
   HERO_VISUAL_KEY,
   normalizeHeroVisual,
@@ -399,10 +399,11 @@ import {
         plannedItems: day.planned,
         isToday,
         nowLabel: nowStr().slice(11, 16),
-        // SPEC-002：旧 origin 只读——行不可点开编辑、不渲染补一下/标记已发生/确认
+        // SPEC-002：旧 origin 只读——行不可点开编辑、不渲染补一下/确认
         // 等写入口，左滑轨道因缺少 data-action="start-edit" 锚点而自然不启用。
         readOnly: isLegacyOrigin(),
-        density: currentTimelineDensity()
+        density: currentTimelineDensity(),
+        showGaps: readUiPreference(TIMELINE_GAPS_KEY) === '1'
       });
       if (focusedEntryId) {
         const row = Array.from(document.querySelectorAll('.entry[data-id][tabindex]'))
@@ -452,6 +453,7 @@ import {
         recordMode: readUiPreference(RECORD_MODE_KEY),
         // v1.8.1：实际画出的时间轴布局（已归一化）；index.html 按同一归一化比对存储。
         timelineDensity: currentTimelineDensity(),
+        showTimelineGaps: readUiPreference(TIMELINE_GAPS_KEY) === '1',
         // v1.13.0：实际画出的卡片图形（已归一化）；index.html 按同一归一化比对存储。
         heroVisual: currentHeroVisual(),
         today: todayStr()
@@ -781,7 +783,7 @@ import {
   }
 
   // v1.6.0（D32）：一次本机记录写入让「已记录 N 天」跨过里程碑节点时，轻提示一次。
-  // 只由新建/补记/编辑/标记已发生这些记录写入路径在**写入成功之后**显式调用；导入、
+  // 只由新建/补记/编辑这些记录写入路径在**写入成功之后**显式调用；导入、
   // 撤销删除、配额回滚、跨标签页同步都不调用——它们不是「今天又记了一天」。
   // 从 sheet 保存时与导入完成提示同一时序（SPEC-012）：等 sheet 滑出后再亮，免得被遮罩盖住。
   const SHEET_CLOSE_MS = 320;
@@ -860,40 +862,6 @@ import {
       sheetController.parkDraft(pending.draft);
       showInfoToast(t('toast.saveUndone'));
     }
-  }
-
-  function confirmPlanned(id) {
-    const snapshot = checkedActionSnapshot(loadSnapshotChecked);
-    if (!snapshot) return;
-    const { data: d, raw } = snapshot;
-    const entry = d.entries.find(e => e.id === id);
-    if (!entry || !entry.planned) return;
-    const wanted = new Date(entry.ts) > new Date() ? nowStr() : entry.ts;
-    // ⑥ Confirming to "now" can collide with an existing entry on that exact
-    // minute. Every other write path guards same-ts; here there is no sheet to
-    // host an inline prompt, so nudge to the next free minute instead of
-    // silently creating a duplicate timestamp.
-    // v88：躲让**限制在同一自然日内**。旧代码无条件 `+1min`，`nowStr()` 落在 23:59
-    // 且那一分钟已被占用时会把这条记录静默挪进第二天——「标记已发生」不该改变它
-    // 发生在哪一天。同一天排满时明说并放弃，不写。
-    const settled = freeMinuteOnSameDay(d.entries, wanted, entry.id);
-    if (!settled) {
-      showInfoToast(t('toast.plannedNoFreeMinute'));
-      return;
-    }
-    const beforeCount = recordedDayCount(d.entries);
-    delete entry.planned;
-    delete entry.planEndTs;
-    entry.ts = settled;
-    normalizeEntries(d, { todayKey: todayStr(), createId: uid });
-    const write = saveChecked(d, raw);
-    if (!write.ok) {
-      showInfoToast(write.message || (write.reason === 'concurrent' ? t('toast.concurrentWrite') : t('toast.writeQuota')));
-      render();
-      return;
-    }
-    render();
-    celebrateMilestone(beforeCount);
   }
 
   // --- Data signature ---
@@ -1131,6 +1099,10 @@ import {
       const action = el.dataset.action;
       if (action === 'theme') setThemePref(el.dataset.theme);
       if (action === 'set-density') setTimelineDensity(el.dataset.density);
+      if (action === 'toggle-timeline-gaps') {
+        saveUiPreference(TIMELINE_GAPS_KEY, el.getAttribute('aria-expanded') === 'true' ? '0' : '1');
+        render();
+      }
       if (action === 'toggle-hero-visual') toggleHeroVisual();
       if (action === 'set-locale') setLocalePref(el.dataset.locale || '');
       if (action === 'view') setView(el.dataset.view);
@@ -1201,7 +1173,6 @@ import {
       if (action === 'preview-locale-defaults') sheetController.previewLocaleDefaults();
       if (action === 'apply-locale-defaults') sheetController.applyLocaleDefaults();
       if (action === 'cancel-locale-defaults') sheetController.cancelLocaleDefaults();
-      if (action === 'confirm-planned') confirmPlanned(el.dataset.id);
       if (action === 'confirm-segment') confirmSegment(el.dataset.id, el.dataset.end);
       if (action === 'request-delete') requestDelete(el.dataset.id);
       if (action === 'confirm-delete') confirmDelete(el.dataset.id);

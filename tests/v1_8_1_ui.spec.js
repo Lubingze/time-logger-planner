@@ -237,7 +237,7 @@ for (const density of ['single']) {
     await applyDensity(page, density);
     await expect(page.locator('.log')).toHaveAttribute('data-density', density);
     await expect(page.locator('.entry[data-id="lunch-start"] [data-action="confirm-segment"]')).toHaveText('Confirm');
-    await expect(page.locator('.entry.planned [data-action="confirm-planned"]')).toHaveText('Mark as done');
+    await expect(page.locator('.entry.planned [data-action="confirm-planned"]')).toHaveCount(0);
     for (const row of await rows(page)) {
       expect(row.h, JSON.stringify(row)).toBe(ROW_PX[density]);
       expect(row.linksInside && row.linksClearOfText && row.linksBig, JSON.stringify(row)).toBe(true);

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Commercial licensing available on request; contact via the repository above.
 import { fmtMins, fmtPlainMins, hhmm, localDateTimeKey, minsBetweenDates, normalizeTimestamp, parseDateKey, plannedEndLabel, shortDateLabel } from './time.js';
-import { dayHeatCells, formatPercent, tagShares, weekHeatCells } from './stats.js';
+import { dayHeatCells, formatPercent, isPlaceholderEntry, tagShares, weekHeatCells } from './stats.js';
 import { getLocale, plural, t, tList } from './i18n.js';
 import {
   BUCKETS,
@@ -328,8 +328,14 @@ export function renderNowStrip(items, isToday, config = loadConfig()) {
 
 
 export function renderTimeline(items, opts = {}) {
-  const { sheetEditId = null, plannedItems = [], isToday = false, nowLabel = '', readOnly = false, config = loadConfig(), density = 'full' } = opts;
+  const { sheetEditId = null, plannedItems = [], isToday = false, nowLabel = '', readOnly = false, config = loadConfig(), density = 'full', showGaps = false } = opts;
   const el = document.getElementById('timeline');
+  const gapToggle = document.getElementById('timeline-gaps-toggle');
+  const recordedItems = items.filter(item => item.e && !isPlaceholderEntry(item.e));
+  const hasGaps = recordedItems.length !== items.length;
+  gapToggle.hidden = !hasGaps;
+  gapToggle.setAttribute('aria-expanded', String(showGaps));
+  gapToggle.textContent = showGaps ? t('timeline.hideGaps') : t('timeline.showGaps');
   const layout = normalizeTimelineDensity(density);
   // v1.8.3 尺子刻度（取代 v1.8.2 的 4h 满格时长条）：只在「全文」布局画（行高随正文变，
   // 竖脊长短不再代表时长，时长交给数字和刻度）。刻度绝对、无上限，跨天同样多即同样长。
@@ -353,21 +359,21 @@ export function renderTimeline(items, opts = {}) {
     endTs: e.planEndTs || '',
     planned: true
   }));
-  const allItems = [...items, ...planned];
+  const allItems = [...(showGaps ? items : recordedItems), ...planned];
   if (!allItems.length) {
-    el.innerHTML = readOnly
-      ? `<div class="empty-tip">${t('timeline.emptyOtherDay')}</div>`
-      : `<div class="empty-tip">${t('timeline.emptyToday')}</div>`;
+    const emptyMessage = hasGaps ? t('timeline.emptyWithoutGaps')
+      : (readOnly ? t('timeline.emptyOtherDay') : t('timeline.emptyToday'));
+    el.innerHTML = `<div class="empty-tip">${emptyMessage}</div>`;
     return;
   }
   // R6（v47）：点整卡即编辑（删除在编辑 sheet 内）。卡片 div 带 data-action（click
-  // 委托：closest 命中最近的 data-action，内部 meta 按钮如补/确认/标记已发生仍各管
+  // 委托：closest 命中最近的 data-action，内部 meta 按钮如补录和确认仍各管
   // 各的）+ role/tabindex/aria-label（键盘 Enter/Space 激活，a11y 不回退）。
   // gap/占位行点整卡=补录/编辑；v56 起行是连续日志容器里的三列网格：时间｜内容｜时长，
   // data-b 驱动左侧通高桶色竖脊（实=已发生、虚线=计划、灰=未记录）。
   // SPEC-002（v76）：readOnly（旧 origin 只读）时整条渲染路径退化——卡片不带
   // data-action/role/tabindex（click 委托与键盘 Enter/Space 都找不到锚点，等价于
-  // 禁用点行编辑）、不渲染补一下/标记已发生/确认等 mini-btn，也不套 swipeWrap
+  // 禁用点行编辑）、不渲染补一下和确认等 mini-btn，也不套 swipeWrap
   // （左滑轨道靠 begin() 里 `.entry[data-action="start-edit"]` 判据自然失效，这里
   // 干脆连不可用的按钮都不画）。浏览/摘要/导出等只读能力完全不受影响。
   const swipeWrap = (card, entry, kind) => `<div class="swipe-row" data-swipe-id="${esc(entry.id)}">
@@ -388,8 +394,6 @@ export function renderTimeline(items, opts = {}) {
         ? `<span class="plan-time-range"><span>${startLabel}</span><span class="plan-time-divider" aria-hidden="true">–</span><span class="plan-end-label">${esc(endLabel)}</span></span>`
         : startLabel;
       const interactiveAttrs = readOnly ? '' : ` data-action="start-edit" role="button" tabindex="0" aria-label="${esc(cardLabel)}"`;
-      // v1.8.1：有「标记已发生」时不再显示「计划」二字——虚线竖脊与「现在」线上方的位置
-      // 已表达，单行等高行里把宽度留给正文；只读页没有动作，仍显示「计划」。读屏名不变。
       const card = `<div class="entry planned${endLabel ? ' has-plan-end' : ''}" data-b="${bucketForTag(displayTag, config)}" data-id="${esc(e.id)}" style="--mins:${mins}"${interactiveAttrs}>
         <div class="e-time">${times}</div>
         <div class="e-body">
@@ -398,7 +402,6 @@ export function renderTimeline(items, opts = {}) {
         </div>
         <div class="e-side">
           ${endLabel ? `<div class="e-dur">${fmtMins(mins)}</div>` : (readOnly ? `<div class="e-dur">${t('timeline.planDur')}</div>` : '')}
-          ${readOnly ? '' : `<div class="e-meta"><button class="mini-btn" type="button" data-action="confirm-planned" data-id="${esc(e.id)}" aria-label="${t('timeline.markDoneAria')}">${t('timeline.markDone')}</button></div>`}
         </div>
       </div>`;
       return readOnly ? card : swipeWrap(card, e, t('timeline.kindPlan'));
@@ -437,7 +440,7 @@ export function renderTimeline(items, opts = {}) {
     const segStartTs = start ? localDateTimeKey(start) : e.ts;
     const segEndTs = end ? localDateTimeKey(end) : '';
     // v56：行内动作只留指向缺口/待办的——未记录占位行保留「补一下」，
-    // 可选的长段待核行保留「确认」与「补一下」，计划行保留「标记已发生」。已发生普通段的「切一刀」移入
+    // 可选的长段待核行保留「确认」与「补一下」。已发生普通段的「切一刀」移入
     // 编辑 sheet（逐行常显的动作词＝换了位置的 card soup）。进行中的今日尾占位不放
     // 「补一下」——FAB「记一条·续 X 起」已是同一缺口的入口，三重冗余只留一个。
     const fillBtn = !readOnly && (isPlaceholder || unrecorded || pendingConfirm) && segEndTs && !activePlaceholder
@@ -475,6 +478,7 @@ export function renderTimeline(items, opts = {}) {
 
 export function renderSummaryRows(rows) {
   const el = document.getElementById('timeline');
+  document.getElementById('timeline-gaps-toggle').hidden = true;
   const html = rows.map(row => {
     const { totals } = row;
     const attrs = `type="button" data-action="drill" data-date="${esc(row.key)}" data-view="${esc(row.targetView)}" data-tip="${t('summary.drillTip')}" aria-label="${esc(t('summary.drillAria', { label: row.label }))}"`;
@@ -545,7 +549,7 @@ function sheetHead({ title, cancelText, cancelAction, cancelAria, doneText = '',
 const cellChevron = '<span class="cell-chevron" aria-hidden="true">›</span>';
 
 // 与 sw.js CACHE / manifest version 同步（project_audit.py 校验）；真机核对版本用。
-export const APP_VERSION = '1.16.1';
+export const APP_VERSION = '1.16.2';
 
 function renderDeleteConfirmSheet(opts = {}) {
   const plan = opts.deletePlan || {};

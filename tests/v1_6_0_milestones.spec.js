@@ -107,18 +107,6 @@ test('the highlight is gone the next day when nothing is logged yet', async ({ p
   expect(await usage(page).evaluate(el => el.classList.contains('is-milestone'))).toBe(false);
 });
 
-test('marking a planned entry as done can reach a milestone too', async ({ page }) => {
-  await bootLocale(page, {
-    locale: 'zh',
-    config: CONFIG,
-    entries: [...pastDays(6), { id: 'plan-1', ts: `${TODAY_KEY}T10:00`, what: '计划读书', tags: ['阅读'], planned: true }]
-  });
-  await expect(usage(page)).toContainText('已记录 6 天');
-  await page.locator('[data-action="confirm-planned"][data-id="plan-1"]').click();
-  await expect(toast(page)).toHaveText('里程碑：已记录满 7 天');
-  await expect(usage(page)).toHaveClass(/is-milestone/);
-});
-
 test('undoing a delete restores the highlight but does not celebrate again', async ({ page }) => {
   await bootLocale(page, {
     locale: 'zh',

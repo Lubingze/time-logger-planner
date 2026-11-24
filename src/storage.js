@@ -57,6 +57,7 @@ export const RECORD_MODE_KEY = 'timelog.recordMode';
 // 「全文」取代 v1.8.1 的「两行」并成为默认（维护者 2026-11-18 选定）。存量的 'double'
 // 按「全文」读，不改写存储；缺失或非法值同样按默认「全文」。
 export const TIMELINE_DENSITY_KEY = 'timelog.timelineDensity';
+export const TIMELINE_GAPS_KEY = 'timelog.showTimelineGaps';
 export const TIMELINE_DENSITIES = ['single', 'full', 'scaled'];
 export const DEFAULT_TIMELINE_DENSITY = 'full';
 

@@ -61,10 +61,8 @@ test('can add and edit an overnight end on a mobile-width plan', async ({ page }
   await page.locator('#form-sheet .sh-done').click();
   await expect(card.locator('.plan-end-label')).toHaveText('次日 02:15');
   expect((await savedPlan(page, '夜间阅读')).planEndTs).toBe('2026-06-30T02:15');
-  await card.getByRole('button', { name: '标记计划为已发生' }).click();
-  const actual = await savedPlan(page, '夜间阅读');
-  expect(actual).not.toHaveProperty('planned');
-  expect(actual).not.toHaveProperty('planEndTs');
+  await expect(card.locator('[data-action="confirm-planned"]')).toHaveCount(0);
+  expect((await savedPlan(page, '夜间阅读')).planned).toBe(true);
 });
 
 test('rejects an equal end and accepts a start-only plan', async ({ page }) => {

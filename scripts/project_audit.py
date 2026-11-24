@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # v1.0.0 起是三段式（此前是单整数，v1–v93）。判据必须**只认三段式**：写回单整数
 # 会让 android 仓的 versionCode 派生与 publish-site 的 tag 校验重新分叉，那两处
 # 现在都按三段式解析。历史 tag 与 docs/CHANGELOG.md 的单整数条目不受影响。
-EXPECTED_VERSION = "1.16.1"
+EXPECTED_VERSION = "1.16.2"
 VERSION_PATTERN = r"\d+\.\d+\.\d+"
 EXPECTED_TOOLTIP_DELAY = "800ms"
 REQUIRED_RUNTIME_ASSETS = [
@@ -360,11 +360,9 @@ def audit_index(errors: list[str]) -> None:
         if "data-tip=" not in attrs:
             fail(errors, f"icon button is missing data-tip near byte {match.start()}")
 
-    # v48：日视图点卡编辑、触摸左滑揭示双操作轨道；计划确认与 FAB 入口仍须存在。
-    # SPEC-013：断言改为**语言无关**——按 data-action 与 i18n key 判定，而不是按
-    # 中文字面量（后者会让「把界面翻成英文」这件事本身把护栏撞红）。
-    if 'data-action="confirm-planned"' not in runtime or "t('timeline.markDoneAria')" not in runtime:
-        fail(errors, "planned card must keep the confirm-as-happened action")
+    # 日视图保留点卡编辑、左滑操作和 FAB 入口；派生版移除了计划转已发生入口。
+    if 'confirm-planned' in runtime or "t('timeline.markDoneAria')" in runtime:
+        fail(errors, "planned cards must stay separate from happened records")
     if 'id="add-btn"' not in html or 'data-action="open-form"' not in html:
         fail(errors, "day-view record entry (FAB #add-btn / open-form) must exist")
     for required in ('data-action="start-edit"', 'data-action="request-delete"', 'class="swipe-actions"'):

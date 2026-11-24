@@ -6,8 +6,8 @@ import { FIXED_NOW, boot } from './ui_fixture.js';
 import { openCfgRow } from './cfg_fixture.js';
 
 test('v93: CAS snapshot cannot pair stale data with another tab\'s newer raw value', async ({ page }) => {
-  await boot(page, 768, 'planned-expired', false, FIXED_NOW);
-  await expect(page.locator('[data-action="confirm-planned"]')).toHaveCount(1);
+  await boot(page, 768, 'pending-confirm-lunch', false, FIXED_NOW);
+  await expect(page.locator('[data-action="confirm-segment"]')).toHaveCount(1);
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
 
@@ -35,15 +35,15 @@ test('v93: CAS snapshot cannot pair stale data with another tab\'s newer raw val
     };
   });
 
-  await page.locator('[data-action="confirm-planned"]').click();
+  await page.locator('[data-action="confirm-segment"]').click();
 
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('timelog.v1')));
   expect(await page.evaluate(() => window.__snapshotRaceReads),
     '竞态注入必须真的命中过第一次数据读取').toBe(1);
   expect(stored.entries.some(entry => entry.id === 'other-tab-write'),
     '另一标签页的新记录不得被旧对象覆盖').toBe(true);
-  expect(stored.entries.find(entry => entry.id === 'plan-expired')?.planned,
-    '检测到并发后当前动作必须中止').toBe(true);
+  expect(stored.entries.find(entry => entry.id === 'lunch-start')?.longConfirm,
+    '检测到并发后当前动作必须中止').toBeUndefined();
   await expect(page.locator('#info-toast')).toContainText('另一个标签页');
   expect(pageErrors).toHaveLength(0);
 });
