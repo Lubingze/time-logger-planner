@@ -1506,7 +1506,18 @@
     }
     .e-time { font-size: var(--fs-ui); color: var(--muted); font-variant-numeric: tabular-nums; }
     .entry.has-plan-end { grid-template-columns: minmax(44px, max-content) minmax(4em, 1fr) minmax(0, auto); }
-    .e-time .plan-end-label { display: block; white-space: nowrap; font-size: var(--fs-cap); line-height: 1.2; }
+    .plan-time-range { display: inline-flex; align-items: center; white-space: nowrap; }
+    @media (max-width: 480px) {
+      .plan-time-range { flex-direction: column; line-height: 1.15; }
+      .plan-time-divider {
+        width: 1px;
+        height: 5px;
+        margin-block: 2px;
+        overflow: hidden;
+        color: transparent;
+        background: var(--muted);
+      }
+    }
     .e-what {
       flex: 0 1 auto;
       min-width: 2em;

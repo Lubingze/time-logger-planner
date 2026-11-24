@@ -31,8 +31,18 @@ test('saves a planned interval across a reload and displays its duration', async
   await page.reload();
   const card = page.locator('.entry.planned').filter({ hasText: '读文献' });
   await expect(card.locator('.e-time')).toHaveText('14:30–16:00');
+  const range = card.locator('.plan-time-range');
+  const divider = range.locator('.plan-time-divider');
+  await expect(range).toHaveCSS('flex-direction', 'row');
+  await expect(divider).toHaveAttribute('aria-hidden', 'true');
   await expect(card.locator('.e-dur')).toHaveText('1h30min');
   await expect(page.locator('#ruler')).toContainText('今日有计划，不计入统计');
+
+  await page.setViewportSize({ width: 320, height: 820 });
+  await expect(range).toHaveCSS('flex-direction', 'column');
+  await expect(divider).toHaveCSS('width', '1px');
+  await expect(divider).toHaveCSS('height', '5px');
+  await expectNoHorizontalOverflow(page);
 });
 
 test('can add and edit an overnight end on a mobile-width plan', async ({ page }) => {
@@ -42,14 +52,14 @@ test('can add and edit an overnight end on a mobile-width plan', async ({ page }
   await page.locator('#form-what').fill('夜间阅读');
   await page.locator('#form-sheet .sh-done').click();
   const card = page.locator('.entry.planned').filter({ hasText: '夜间阅读' });
-  await expect(card.locator('.plan-end-label')).toHaveText('–次日 01:00');
+  await expect(card.locator('.plan-end-label')).toHaveText('次日 01:00');
   await expectNoHorizontalOverflow(page);
   await card.click();
   const end = page.getByLabel('结束时间（可选）');
   await expect(end).toHaveValue('01:00');
   await end.fill('02:15');
   await page.locator('#form-sheet .sh-done').click();
-  await expect(card.locator('.plan-end-label')).toHaveText('–次日 02:15');
+  await expect(card.locator('.plan-end-label')).toHaveText('次日 02:15');
   expect((await savedPlan(page, '夜间阅读')).planEndTs).toBe('2026-06-30T02:15');
   await card.getByRole('button', { name: '标记计划为已发生' }).click();
   const actual = await savedPlan(page, '夜间阅读');

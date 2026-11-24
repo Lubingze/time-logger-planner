@@ -2,7 +2,7 @@
 
 > Status: active · 计划区间派生版；原项目进度与待办见 [STATUS.md](STATUS.md)
 >
-> Release: v1.16.0（计划区间派生版，基于原版 v1.15.0）
+> Release: v1.16.1（计划区间派生版，基于原版 v1.15.0）
 >
 > Updated: 2026-11-24
 >
